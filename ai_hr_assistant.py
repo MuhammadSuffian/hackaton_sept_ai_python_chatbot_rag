@@ -43,8 +43,28 @@ class AIHRAssistant:
             with st.spinner("Loading AI model..."):
                 self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
             st.success("✅ AI model loaded successfully!")
+            
+            # Automatically load data after model loads
+            self._auto_load_data()
         except Exception as e:
             st.error(f"❌ Error loading AI model: {str(e)}")
+    
+    def _auto_load_data(self):
+        """Automatically load all database data after AI model loads"""
+        try:
+            with st.spinner("Loading database data..."):
+                # Fetch organizations and employees
+                organizations = self.fetch_organizations()
+                employees = self.fetch_employees()
+                
+                if organizations and employees:
+                    # Prepare RAG data
+                    self.prepare_rag_data()
+                    st.success("✅ All data loaded successfully!")
+                else:
+                    st.warning("⚠️ No data found in database")
+        except Exception as e:
+            st.error(f"❌ Error loading data: {str(e)}")
     
     def fetch_organizations(self) -> List[Dict[Any, Any]]:
         """Fetch all organizations data"""
@@ -197,22 +217,14 @@ def main():
     
     # Sidebar
     with st.sidebar:
-        st.header("⚙️ Data Management")
-        
-        if st.button("🔄 Load All Data", type="primary"):
-            with st.spinner("Loading data..."):
-                organizations = hr_assistant.fetch_organizations()
-                employees = hr_assistant.fetch_employees()
-                
-                if organizations and employees:
-                    hr_assistant.prepare_rag_data()
-                    st.success("✅ Data loaded successfully!")
-                else:
-                    st.error("❌ Failed to load data!")
-        
-        st.subheader("📊 Data Status")
+        st.header("📊 Data Status")
         st.info(f"Organizations: {len(hr_assistant.organizations_data)}")
         st.info(f"Employees: {len(hr_assistant.employees_data)}")
+        
+        if len(hr_assistant.organizations_data) > 0 and len(hr_assistant.employees_data) > 0:
+            st.success("✅ Data automatically loaded!")
+        else:
+            st.warning("⚠️ No data available")
         
         # Data display options
         st.subheader("📋 View Data")
