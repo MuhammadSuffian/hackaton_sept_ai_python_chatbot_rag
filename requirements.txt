@@ -6,3 +6,10 @@ supabase
 sentence-transformers
 scikit-learn
 python-dotenv
+
+# Groq API and LangChain dependencies
+groq
+langchain
+langchain-community
+faiss-cpu
+PyPDF2
