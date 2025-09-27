@@ -11,7 +11,7 @@ import re
 
 # Initialize Groq client with environment variable
 import os
-groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+groq_client = Groq(api_key="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")
 
 # Remove hidden reasoning from model outputs
 THINK_TAG_RE = re.compile(r"<think>[\s\S]*?</think>", re.IGNORECASE)
