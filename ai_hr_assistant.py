@@ -42,6 +42,8 @@ class AIHRAssistant:
         self.embedding_model = None
         self.organizations_data = []
         self.employees_data = []
+        self.leaves_data = []
+        self.attendance_data = []
         self.embeddings = None
         self.text_chunks = []
         self.vectorstore = None
@@ -65,9 +67,15 @@ class AIHRAssistant:
         """Automatically load all database data after AI model loads"""
         try:
             with st.spinner("Loading database data..."):
-                # Fetch organizations and employees
+                # Fetch all tables
                 organizations = self.fetch_organizations()
                 employees = self.fetch_employees()
+                leaves = self.fetch_leaves()
+                attendance = self.fetch_attendance()
+                
+                # Store attendance data
+                self.attendance_data = attendance
+                self.leaves_data = leaves
                 
                 if organizations and employees:
                     # Prepare RAG data
@@ -75,6 +83,12 @@ class AIHRAssistant:
                     st.success("✅ All data loaded successfully!")
                 else:
                     st.warning("⚠️ No data found in database")
+                
+                # Debug attendance loading
+                if attendance:
+                    st.info(f"📊 Loaded {len(attendance)} attendance records")
+                else:
+                    st.warning("⚠️ No attendance records found")
         except Exception as e:
             st.error(f"❌ Error loading data: {str(e)}")
     
@@ -107,6 +121,24 @@ class AIHRAssistant:
             st.error(f"❌ Error fetching employees by organization: {str(e)}")
             return []
     
+    def fetch_leaves(self) -> List[Dict[Any, Any]]:
+        """Fetch all leaves data"""
+        try:
+            response = self.supabase.table('leaves').select("*").execute()
+            return response.data
+        except Exception as e:
+            st.error(f"❌ Error fetching leaves: {str(e)}")
+            return []
+    
+    def fetch_attendance(self) -> List[Dict[Any, Any]]:
+        """Fetch all attendance data"""
+        try:
+            response = self.supabase.table('attendance').select("*").execute()
+            return response.data
+        except Exception as e:
+            st.error(f"❌ Error fetching attendance: {str(e)}")
+            return []
+    
     def prepare_rag_data(self):
         """Prepare data for RAG system by creating text chunks and embeddings"""
         if not self.embedding_model:
@@ -131,9 +163,35 @@ class AIHRAssistant:
                     org_name = org.get('name', 'Unknown')
                     break
             
-            chunk = f"Employee: {emp.get('name', 'Unknown')} - Email: {emp.get('email', 'Unknown')} - Role: {emp.get('role', 'Unknown')} - Phone: {emp.get('phone', 'Unknown')} - Organization: {org_name}"
+            chunk = f"Employee: {emp.get('name', 'Unknown')} - Email: {emp.get('email', 'Unknown')} - Role: {emp.get('role', 'Unknown')} - Phone: {emp.get('phone', 'Unknown')} - Department: {emp.get('department', 'Unknown')} - Salary: {emp.get('salary', 'Unknown')} - Leave Balance: {emp.get('leave_balance', 'Unknown')} - Status: {emp.get('status', 'Unknown')} - Organization: {org_name}"
             self.text_chunks.append(chunk)
             documents.append(Document(page_content=chunk, metadata={"type": "employee", "id": emp.get('id')}))
+        
+        # Create text chunks from leaves
+        for leave in self.leaves_data:
+            # Find employee name
+            emp_name = "Unknown"
+            for emp in self.employees_data:
+                if emp.get('id') == leave.get('employee_id'):
+                    emp_name = emp.get('name', 'Unknown')
+                    break
+            
+            chunk = f"Leave: Employee {emp_name} - Type: {leave.get('type', 'Unknown')} - Start: {leave.get('start_date', 'Unknown')} - End: {leave.get('end_date', 'Unknown')} - Reason: {leave.get('reason', 'Unknown')} - Status: {leave.get('status', 'Unknown')}"
+            self.text_chunks.append(chunk)
+            documents.append(Document(page_content=chunk, metadata={"type": "leave", "id": leave.get('id')}))
+        
+        # Create text chunks from attendance
+        for att in self.attendance_data:
+            # Find employee name
+            emp_name = "Unknown"
+            for emp in self.employees_data:
+                if emp.get('id') == att.get('employee_id'):
+                    emp_name = emp.get('name', 'Unknown')
+                    break
+            
+            chunk = f"Attendance: Employee {emp_name} - Date: {att.get('work_date', 'Unknown')} - Check In: {att.get('check_in', 'Unknown')} - Check Out: {att.get('check_out', 'Unknown')} - Status: {att.get('status', 'Unknown')}"
+            self.text_chunks.append(chunk)
+            documents.append(Document(page_content=chunk, metadata={"type": "attendance", "id": att.get('id')}))
         
         # Create FAISS vectorstore
         if documents:
@@ -185,6 +243,35 @@ class AIHRAssistant:
         
         elif any(phrase in question_lower for phrase in ['smallest organization', 'smallest company', 'organization with least people', 'which organization is smallest']):
             return self._get_smallest_organization()
+        
+        # New analytical queries for leaves and attendance
+        elif any(phrase in question_lower for phrase in ['leave analytics', 'leave statistics', 'leave data', 'leaves summary', 'leave report']):
+            return self._get_leave_analytics()
+        
+        elif any(phrase in question_lower for phrase in ['attendance analytics', 'attendance statistics', 'attendance data', 'attendance summary', 'attendance report']):
+            return self._get_attendance_analytics()
+        
+        elif any(phrase in question_lower for phrase in ['detailed attendance', 'comprehensive attendance', 'attendance breakdown', 'attendance analysis']):
+            return self._get_detailed_attendance_analytics()
+        
+        elif any(phrase in question_lower for phrase in ['list attendance', 'show attendance', 'attendance list', 'all attendance', 'attendance records', 'attendance data']):
+            return self._get_all_attendance()
+        
+        elif any(phrase in question_lower for phrase in ['employee attendance', 'attendance for', 'show attendance for', 'attendance for', 'show attendence for']):
+            # Extract employee name from query
+            employee_name = self._extract_employee_name(question)
+            if employee_name:
+                return self._get_employee_attendance(employee_name)
+            else:
+                return "❌ Please specify the employee name. Example: 'Show attendance for John Smith'"
+        
+        elif any(phrase in question_lower for phrase in ['employee details', 'employee info', 'employee information', 'show employee']):
+            # Extract employee name from query
+            employee_name = self._extract_employee_name(question)
+            if employee_name:
+                return self._get_employee_details(employee_name)
+            else:
+                return "❌ Please specify the employee name. Example: 'Show details for John Smith'"
         
         # Handle greetings and general conversation (after analytical queries)
         elif any(greeting in question_lower for greeting in ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening']):
@@ -404,6 +491,333 @@ class AIHRAssistant:
         
         return f"📉 **Smallest Organization**: **{org_name}** with {min_count} employees"
     
+    def _get_leave_analytics(self) -> str:
+        """Get leave analytics and statistics"""
+        if not self.leaves_data:
+            return "❌ No leave data available."
+        
+        # Count leaves by type
+        leave_types = {}
+        leave_status = {}
+        for leave in self.leaves_data:
+            leave_type = leave.get('type', 'Unknown')
+            status = leave.get('status', 'Unknown')
+            
+            leave_types[leave_type] = leave_types.get(leave_type, 0) + 1
+            leave_status[status] = leave_status.get(status, 0) + 1
+        
+        result = "📅 **Leave Analytics**:\n\n"
+        result += f"**Total Leaves**: {len(self.leaves_data)}\n\n"
+        
+        result += "**By Type**:\n"
+        for leave_type, count in sorted(leave_types.items(), key=lambda x: x[1], reverse=True):
+            result += f"• {leave_type}: {count}\n"
+        
+        result += "\n**By Status**:\n"
+        for status, count in sorted(leave_status.items(), key=lambda x: x[1], reverse=True):
+            result += f"• {status}: {count}\n"
+        
+        return result
+    
+    def _get_attendance_analytics(self) -> str:
+        """Get attendance analytics and statistics"""
+        if not self.attendance_data:
+            return "❌ No attendance data available."
+        
+        # Count attendance by status
+        attendance_status = {}
+        # Track check-in/out patterns
+        check_in_times = []
+        check_out_times = []
+        # Track work dates
+        work_dates = set()
+        
+        for att in self.attendance_data:
+            status = att.get('status', 'Unknown')
+            attendance_status[status] = attendance_status.get(status, 0) + 1
+            
+            # Collect check-in/out times for analysis
+            check_in = att.get('check_in')
+            check_out = att.get('check_out')
+            work_date = att.get('work_date')
+            
+            if check_in:
+                check_in_times.append(check_in)
+            if check_out:
+                check_out_times.append(check_out)
+            if work_date:
+                work_dates.add(work_date)
+        
+        result = "⏰ **Attendance Analytics**:\n\n"
+        result += f"**Total Records**: {len(self.attendance_data)}\n"
+        result += f"**Unique Work Dates**: {len(work_dates)}\n\n"
+        
+        result += "**By Status**:\n"
+        for status, count in sorted(attendance_status.items(), key=lambda x: x[1], reverse=True):
+            result += f"• {status}: {count}\n"
+        
+        # Add check-in/out analysis if data available
+        if check_in_times:
+            result += f"\n**Check-in Records**: {len(check_in_times)}\n"
+        if check_out_times:
+            result += f"**Check-out Records**: {len(check_out_times)}\n"
+        
+        return result
+    
+    def _get_detailed_attendance_analytics(self) -> str:
+        """Get detailed attendance analytics using all attendance fields"""
+        if not self.attendance_data:
+            return "❌ No attendance data available."
+        
+        # Analyze attendance patterns
+        attendance_by_date = {}
+        attendance_by_employee = {}
+        status_counts = {}
+        check_in_analysis = []
+        check_out_analysis = []
+        
+        for att in self.attendance_data:
+            employee_id = att.get('employee_id')
+            work_date = att.get('work_date')
+            check_in = att.get('check_in')
+            check_out = att.get('check_out')
+            status = att.get('status', 'Unknown')
+            
+            # Count by status
+            status_counts[status] = status_counts.get(status, 0) + 1
+            
+            # Group by date
+            if work_date:
+                if work_date not in attendance_by_date:
+                    attendance_by_date[work_date] = []
+                attendance_by_date[work_date].append(att)
+            
+            # Group by employee
+            if employee_id:
+                if employee_id not in attendance_by_employee:
+                    attendance_by_employee[employee_id] = []
+                attendance_by_employee[employee_id].append(att)
+            
+            # Collect check-in/out data
+            if check_in:
+                check_in_analysis.append({
+                    'employee_id': employee_id,
+                    'date': work_date,
+                    'time': check_in,
+                    'status': status
+                })
+            if check_out:
+                check_out_analysis.append({
+                    'employee_id': employee_id,
+                    'date': work_date,
+                    'time': check_out,
+                    'status': status
+                })
+        
+        result = "⏰ **Detailed Attendance Analytics**:\n\n"
+        result += f"**Total Attendance Records**: {len(self.attendance_data)}\n"
+        result += f"**Unique Work Dates**: {len(attendance_by_date)}\n"
+        result += f"**Employees with Attendance**: {len(attendance_by_employee)}\n\n"
+        
+        result += "**By Status**:\n"
+        for status, count in sorted(status_counts.items(), key=lambda x: x[1], reverse=True):
+            percentage = (count / len(self.attendance_data)) * 100
+            result += f"• {status}: {count} ({percentage:.1f}%)\n"
+        
+        result += f"\n**Check-in Records**: {len(check_in_analysis)}\n"
+        result += f"**Check-out Records**: {len(check_out_analysis)}\n"
+        
+        # Show recent work dates
+        if attendance_by_date:
+            recent_dates = sorted(attendance_by_date.keys(), reverse=True)[:5]
+            result += f"\n**Recent Work Dates** (last 5):\n"
+            for date in recent_dates:
+                count = len(attendance_by_date[date])
+                result += f"• {date}: {count} records\n"
+        
+        return result
+    
+    def _get_all_attendance(self) -> str:
+        """Get all attendance records in a formatted list"""
+        if not self.attendance_data:
+            return "❌ No attendance data available. The attendance table appears to be empty or not accessible."
+        
+        if not self.employees_data:
+            return "❌ No employee data available to match attendance records."
+        
+        # Create a mapping of employee_id to employee_name
+        employee_map = {}
+        for emp in self.employees_data:
+            employee_map[emp.get('id')] = emp.get('name', 'Unknown')
+        
+        result = f"⏰ **All Attendance Records** ({len(self.attendance_data)} total):\n\n"
+        
+        # Sort attendance by date (most recent first)
+        sorted_attendance = sorted(self.attendance_data, 
+                                 key=lambda x: x.get('work_date', ''), 
+                                 reverse=True)
+        
+        # Group by date for better organization
+        attendance_by_date = {}
+        for att in sorted_attendance:
+            work_date = att.get('work_date', 'Unknown')
+            if work_date not in attendance_by_date:
+                attendance_by_date[work_date] = []
+            attendance_by_date[work_date].append(att)
+        
+        # Display attendance grouped by date
+        for date in sorted(attendance_by_date.keys(), reverse=True)[:10]:  # Show last 10 days
+            result += f"📅 **{date}** ({len(attendance_by_date[date])} records):\n"
+            for att in attendance_by_date[date]:
+                employee_id = att.get('employee_id')
+                employee_name = employee_map.get(employee_id, f"Employee ID: {employee_id}")
+                check_in = att.get('check_in', 'N/A')
+                check_out = att.get('check_out', 'N/A')
+                status = att.get('status', 'Unknown')
+                
+                result += f"  • **{employee_name}**: {check_in} - {check_out} ({status})\n"
+            result += "\n"
+        
+        if len(attendance_by_date) > 10:
+            result += f"... and {len(attendance_by_date) - 10} more days of records.\n"
+        
+        # Add summary statistics
+        status_counts = {}
+        for att in self.attendance_data:
+            status = att.get('status', 'Unknown')
+            status_counts[status] = status_counts.get(status, 0) + 1
+        
+        result += "\n**Summary by Status**:\n"
+        for status, count in sorted(status_counts.items(), key=lambda x: x[1], reverse=True):
+            percentage = (count / len(self.attendance_data)) * 100
+            result += f"• {status}: {count} ({percentage:.1f}%)\n"
+        
+        return result
+    
+    def _get_employee_attendance(self, employee_name: str) -> str:
+        """Get attendance details for a specific employee"""
+        if not self.attendance_data or not self.employees_data:
+            return "❌ No attendance or employee data available."
+        
+        # Find employee by name (exact match first, then partial match)
+        employee = None
+        for emp in self.employees_data:
+            emp_name = emp.get('name', '').lower()
+            search_name = employee_name.lower()
+            
+            # Exact match
+            if emp_name == search_name:
+                employee = emp
+                break
+            # Partial match (first name or last name)
+            elif search_name in emp_name or any(part in emp_name for part in search_name.split()):
+                employee = emp
+                break
+        
+        if not employee:
+            return f"❌ Employee '{employee_name}' not found. Available employees: {', '.join([emp.get('name', 'Unknown') for emp in self.employees_data[:5]])}..."
+        
+        employee_id = employee.get('id')
+        employee_attendance = [att for att in self.attendance_data if att.get('employee_id') == employee_id]
+        
+        if not employee_attendance:
+            return f"❌ No attendance records found for {employee_name}."
+        
+        # Analyze employee's attendance
+        status_counts = {}
+        recent_attendance = []
+        
+        for att in employee_attendance:
+            status = att.get('status', 'Unknown')
+            status_counts[status] = status_counts.get(status, 0) + 1
+            
+            recent_attendance.append({
+                'date': att.get('work_date', 'Unknown'),
+                'check_in': att.get('check_in', 'Unknown'),
+                'check_out': att.get('check_out', 'Unknown'),
+                'status': status
+            })
+        
+        # Sort by date (most recent first)
+        recent_attendance.sort(key=lambda x: x['date'], reverse=True)
+        
+        result = f"⏰ **Attendance for {employee_name}**:\n\n"
+        result += f"**Total Records**: {len(employee_attendance)}\n\n"
+        
+        result += "**Status Summary**:\n"
+        for status, count in sorted(status_counts.items(), key=lambda x: x[1], reverse=True):
+            percentage = (count / len(employee_attendance)) * 100
+            result += f"• {status}: {count} ({percentage:.1f}%)\n"
+        
+        result += f"\n**Recent Attendance** (last 5 records):\n"
+        for att in recent_attendance[:5]:
+            result += f"• {att['date']}: {att['check_in']} - {att['check_out']} ({att['status']})\n"
+        
+        return result
+    
+    def _get_employee_details(self, employee_name: str) -> str:
+        """Get detailed information about a specific employee"""
+        if not self.employees_data:
+            return "❌ No employee data available."
+        
+        # Find employee by name
+        employee = None
+        for emp in self.employees_data:
+            if emp.get('name', '').lower() == employee_name.lower():
+                employee = emp
+                break
+        
+        if not employee:
+            return f"❌ Employee '{employee_name}' not found."
+        
+        # Get organization name
+        org_name = "Unknown"
+        for org in self.organizations_data:
+            if org.get('id') == employee.get('organization_id'):
+                org_name = org.get('name', 'Unknown')
+                break
+        
+        result = f"👤 **Employee Details - {employee.get('name', 'Unknown')}**:\n\n"
+        result += f"**Basic Info**:\n"
+        result += f"• Email: {employee.get('email', 'Unknown')}\n"
+        result += f"• Phone: {employee.get('phone', 'Unknown')}\n"
+        result += f"• Role: {employee.get('role', 'Unknown')}\n"
+        result += f"• Department: {employee.get('department', 'Unknown')}\n"
+        result += f"• Organization: {org_name}\n"
+        result += f"• Status: {employee.get('status', 'Unknown')}\n"
+        result += f"• Salary: {employee.get('salary', 'Unknown')}\n"
+        result += f"• Leave Balance: {employee.get('leave_balance', 'Unknown')}\n"
+        result += f"• Hire Date: {employee.get('hire_date', 'Unknown')}\n"
+        result += f"• Last Login: {employee.get('last_login', 'Unknown')}\n"
+        
+        return result
+    
+    def _extract_employee_name(self, question: str) -> str:
+        """Extract employee name from query"""
+        import re
+        
+        # Pattern to match "for [Name]" or just "[Name]"
+        patterns = [
+            r'for\s+([A-Za-z\s]+)',
+            r'([A-Z][a-z]+\s+[A-Z][a-z]+)',  # First Last
+            r'([A-Z][a-z]+)',  # Single name
+            r'employee\s+([A-Za-z\s]+)',
+            r'details\s+([A-Za-z\s]+)',
+            r'attendance\s+for\s+([A-Za-z\s]+)',
+            r'show\s+attendance\s+for\s+([A-Za-z\s]+)'
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, question, re.IGNORECASE)
+            if match:
+                name = match.group(1).strip()
+                # Remove common words
+                name = re.sub(r'\b(for|employee|details|info|information|attendance|show)\b', '', name, flags=re.IGNORECASE).strip()
+                if name:
+                    return name
+        
+        return None
+    
     def _generate_groq_response(self, question: str, context: str) -> str:
         """Generate response using Groq API"""
         if not self.groq_client:
@@ -518,6 +932,8 @@ def main():
         st.header("📊 Data Status")
         st.info(f"Organizations: {len(hr_assistant.organizations_data)}")
         st.info(f"Employees: {len(hr_assistant.employees_data)}")
+        st.info(f"Attendance Records: {len(hr_assistant.attendance_data)}")
+        st.info(f"Leave Records: {len(hr_assistant.leaves_data)}")
         
         if len(hr_assistant.organizations_data) > 0 and len(hr_assistant.employees_data) > 0:
             st.success("✅ Data automatically loaded!")
@@ -539,6 +955,20 @@ def main():
                 st.dataframe(df_emp)
             else:
                 st.warning("No employees data loaded")
+        
+        if st.button("View Attendance"):
+            if hr_assistant.attendance_data:
+                df_att = pd.DataFrame(hr_assistant.attendance_data)
+                st.dataframe(df_att)
+            else:
+                st.warning("No attendance data loaded")
+        
+        if st.button("View Leaves"):
+            if hr_assistant.leaves_data:
+                df_leaves = pd.DataFrame(hr_assistant.leaves_data)
+                st.dataframe(df_leaves)
+            else:
+                st.warning("No leaves data loaded")
     
     # Main content area
     col1, col2 = st.columns([2, 1])
@@ -609,8 +1039,13 @@ def main():
             "What roles are available?",
             "Show me all organizations",
             "Which is the largest organization?",
-            "Which is the smallest organization?",
-            "Show roles by organization"
+            "Show leave analytics",
+            "Show attendance analytics",
+            "Show detailed attendance analytics",
+            "List attendance",
+            "Show all attendance records",
+            "Show attendance for John Smith",
+            "Show details for John Smith"
         ]
         
         for question in sample_questions:
