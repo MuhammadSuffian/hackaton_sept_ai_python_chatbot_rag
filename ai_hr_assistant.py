@@ -19,7 +19,7 @@ from langchain.docstore.document import Document
 
 # Configure Streamlit page
 st.set_page_config(
-    page_title="AI HR Assistant",
+    page_title=" Ask HR",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -66,7 +66,7 @@ st.markdown(
 
 class AIHRAssistant:
     def __init__(self):
-        """Initialize AI HR Assistant with Supabase connection and RAG capabilities"""
+        """Initialize  Ask HR with Supabase connection and RAG capabilities"""
         # Supabase configuration
         self.url = os.getenv('SUPABASE_URL', 'https://ptkqgiqqefoceswfwent.supabase.co')
         self.key = os.getenv('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3FnaXFxZWZvY2Vzd2Z3ZW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5Njk1NDcsImV4cCI6MjA3NDU0NTU0N30.6DU3Ahplr8tybCxBcJScd8PaPqYWXNb_Y7zSMvF3wRg')
@@ -99,12 +99,12 @@ class AIHRAssistant:
             with st.spinner("Loading AI model..."):
                 self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
             if self.show_status:
-                st.success("✅ AI model loaded successfully!")
+                st.success("AI model loaded successfully!")
             
             # Automatically load data after model loads
             self._auto_load_data()
         except Exception as e:
-            st.error(f"❌ Error loading AI model: {str(e)}")
+            st.error(f" Error loading AI model: {str(e)}")
     
     def _auto_load_data(self):
         """Automatically load all database data after AI model loads"""
@@ -135,7 +135,7 @@ class AIHRAssistant:
                     if self.show_status:
                         st.warning("⚠️ No attendance records found")
         except Exception as e:
-            st.error(f"❌ Error loading data: {str(e)}")
+            st.error(f"  Error loading data: {str(e)}")
     
     def fetch_organizations(self) -> List[Dict[Any, Any]]:
         """Fetch all organizations data"""
@@ -144,7 +144,7 @@ class AIHRAssistant:
             self.organizations_data = response.data
             return response.data
         except Exception as e:
-            st.error(f"❌ Error fetching organizations: {str(e)}")
+            st.error(f"  Error fetching organizations: {str(e)}")
             return []
     
     def fetch_employees(self) -> List[Dict[Any, Any]]:
@@ -154,7 +154,7 @@ class AIHRAssistant:
             self.employees_data = response.data
             return response.data
         except Exception as e:
-            st.error(f"❌ Error fetching employees: {str(e)}")
+            st.error(f"  Error fetching employees: {str(e)}")
             return []
     
     def fetch_employee_by_organization(self, org_id: int) -> List[Dict[Any, Any]]:
@@ -163,7 +163,7 @@ class AIHRAssistant:
             response = self.supabase.table('employees').select("*").eq('organization_id', org_id).execute()
             return response.data
         except Exception as e:
-            st.error(f"❌ Error fetching employees by organization: {str(e)}")
+            st.error(f"  Error fetching employees by organization: {str(e)}")
             return []
     
     def fetch_leaves(self) -> List[Dict[Any, Any]]:
@@ -172,7 +172,7 @@ class AIHRAssistant:
             response = self.supabase.table('leaves').select("*").execute()
             return response.data
         except Exception as e:
-            st.error(f"❌ Error fetching leaves: {str(e)}")
+            st.error(f"  Error fetching leaves: {str(e)}")
             return []
     
     def fetch_attendance(self) -> List[Dict[Any, Any]]:
@@ -181,13 +181,13 @@ class AIHRAssistant:
             response = self.supabase.table('attendance').select("*").execute()
             return response.data
         except Exception as e:
-            st.error(f"❌ Error fetching attendance: {str(e)}")
+            st.error(f"  Error fetching attendance: {str(e)}")
             return []
     
     def prepare_rag_data(self):
         """Prepare data for RAG system by creating text chunks and embeddings"""
         if not self.embedding_model:
-            st.error("❌ AI model not loaded!")
+            st.error("  AI model not loaded!")
             return
         
         self.text_chunks = []
@@ -262,7 +262,7 @@ class AIHRAssistant:
                     results.append((doc.page_content, similarity))
             return results
         except Exception as e:
-            st.error(f"❌ Error in similarity search: {str(e)}")
+            st.error(f"  Error in similarity search: {str(e)}")
             return []
     
     def answer_hr_question(self, question: str) -> str:
@@ -272,7 +272,7 @@ class AIHRAssistant:
         
         # Check if data is loaded for HR-specific queries first
         if not self.organizations_data and not self.employees_data:
-            return "❌ No HR data loaded. Please wait for automatic data loading to complete. I can still help with general questions though!"
+            return "  No HR data loaded. Please wait for automatic data loading to complete. I can still help with general questions though!"
         
         # Enhanced analytical queries (check these BEFORE greetings)
         if any(phrase in question_lower for phrase in ['organizations with most employees', 'companies with most staff', 'organizations by employee count', 'which organization has highest employee', 'which organization has most employees', 'highest employee organization', 'which organization has most employees', 'organization with most employees', 'most employees organization', 'organization most employees', 'most employees', 'highest employees', 'organization has most']):
@@ -309,7 +309,7 @@ class AIHRAssistant:
             if employee_name:
                 return self._get_employee_attendance(employee_name)
             else:
-                return "❌ Please specify the employee name. Example: 'Show attendance for John Smith'"
+                return "  Please specify the employee name. Example: 'Show attendance for John Smith'"
         
         elif any(phrase in question_lower for phrase in ['employee details', 'employee info', 'employee information', 'show employee']):
             # Extract employee name from query
@@ -317,7 +317,7 @@ class AIHRAssistant:
             if employee_name:
                 return self._get_employee_details(employee_name)
             else:
-                return "❌ Please specify the employee name. Example: 'Show details for John Smith'"
+                return "  Please specify the employee name. Example: 'Show details for John Smith'"
         
         # Handle greetings and general conversation (after analytical queries)
         elif any(greeting in question_lower for greeting in ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening']):
@@ -349,7 +349,7 @@ class AIHRAssistant:
         try:
             return self._generate_groq_response(question, context)
         except Exception as e:
-            st.error(f"❌ Error with Groq API: {str(e)}")
+            st.error(f"  Error with Groq API: {str(e)}")
             # Fallback to rule-based responses
             return self._fallback_response(question_lower, context, relevant_chunks)
     
@@ -376,7 +376,7 @@ class AIHRAssistant:
             return f"📧 **Contact Information**: Here are the contact details:\n\n{context}"
         
         else:
-            return f"🤖 **AI HR Assistant Response**:\n\nBased on the available data, here's what I found:\n\n{context}\n\n*Relevance scores: {[f'{chunk[1]:.2f}' for chunk in relevant_chunks]}*"
+            return f"🤖 ** Ask HR Response**:\n\nBased on the available data, here's what I found:\n\n{context}\n\n*Relevance scores: {[f'{chunk[1]:.2f}' for chunk in relevant_chunks]}*"
     
     def get_hr_insights(self) -> Dict[str, Any]:
         """Generate HR insights from the data"""
@@ -397,7 +397,7 @@ class AIHRAssistant:
     def _get_organizations_by_employee_count(self) -> str:
         """Get organizations ranked by employee count (descending order)"""
         if not self.employees_data or not self.organizations_data:
-            return "❌ No data available for analysis."
+            return "  No data available for analysis."
         
         # Count employees per organization
         org_employee_count = {}
@@ -427,7 +427,7 @@ class AIHRAssistant:
     def _get_employee_breakdown_by_organization(self) -> str:
         """Get detailed employee breakdown by organization"""
         if not self.employees_data or not self.organizations_data:
-            return "❌ No data available for analysis."
+            return "  No data available for analysis."
         
         # Group employees by organization
         org_employees = {}
@@ -455,7 +455,7 @@ class AIHRAssistant:
     def _get_roles_by_organization(self) -> str:
         """Get roles breakdown by organization"""
         if not self.employees_data or not self.organizations_data:
-            return "❌ No data available for analysis."
+            return "  No data available for analysis."
         
         # Group roles by organization
         org_roles = {}
@@ -484,7 +484,7 @@ class AIHRAssistant:
     def _get_largest_organization(self) -> str:
         """Get the organization with the most employees"""
         if not self.employees_data or not self.organizations_data:
-            return "❌ No data available for analysis."
+            return "  No data available for analysis."
         
         # Count employees per organization
         org_employee_count = {}
@@ -494,7 +494,7 @@ class AIHRAssistant:
                 org_employee_count[org_id] = org_employee_count.get(org_id, 0) + 1
         
         if not org_employee_count:
-            return "❌ No employees found in any organization."
+            return "  No employees found in any organization."
         
         # Find organization with most employees
         max_org_id = max(org_employee_count, key=org_employee_count.get)
@@ -512,7 +512,7 @@ class AIHRAssistant:
     def _get_smallest_organization(self) -> str:
         """Get the organization with the least employees"""
         if not self.employees_data or not self.organizations_data:
-            return "❌ No data available for analysis."
+            return "  No data available for analysis."
         
         # Count employees per organization
         org_employee_count = {}
@@ -522,7 +522,7 @@ class AIHRAssistant:
                 org_employee_count[org_id] = org_employee_count.get(org_id, 0) + 1
         
         if not org_employee_count:
-            return "❌ No employees found in any organization."
+            return "  No employees found in any organization."
         
         # Find organization with least employees
         min_org_id = min(org_employee_count, key=org_employee_count.get)
@@ -540,7 +540,7 @@ class AIHRAssistant:
     def _get_leave_analytics(self) -> str:
         """Get leave analytics and statistics"""
         if not self.leaves_data:
-            return "❌ No leave data available."
+            return "  No leave data available."
         
         # Count leaves by type
         leave_types = {}
@@ -568,7 +568,7 @@ class AIHRAssistant:
     def _get_attendance_analytics(self) -> str:
         """Get attendance analytics and statistics"""
         if not self.attendance_data:
-            return "❌ No attendance data available."
+            return "  No attendance data available."
         
         # Count attendance by status
         attendance_status = {}
@@ -613,7 +613,7 @@ class AIHRAssistant:
     def _get_detailed_attendance_analytics(self) -> str:
         """Get detailed attendance analytics using all attendance fields"""
         if not self.attendance_data:
-            return "❌ No attendance data available."
+            return "  No attendance data available."
         
         # Analyze attendance patterns
         attendance_by_date = {}
@@ -686,10 +686,10 @@ class AIHRAssistant:
     def _get_all_attendance(self) -> str:
         """Get all attendance records in a formatted list"""
         if not self.attendance_data:
-            return "❌ No attendance data available. The attendance table appears to be empty or not accessible."
+            return "  No attendance data available. The attendance table appears to be empty or not accessible."
         
         if not self.employees_data:
-            return "❌ No employee data available to match attendance records."
+            return "  No employee data available to match attendance records."
         
         # Create a mapping of employee_id to employee_name
         employee_map = {}
@@ -743,7 +743,7 @@ class AIHRAssistant:
     def _get_employee_attendance(self, employee_name: str) -> str:
         """Get attendance details for a specific employee"""
         if not self.attendance_data or not self.employees_data:
-            return "❌ No attendance or employee data available."
+            return "  No attendance or employee data available."
         
         # Find employee by name (exact match first, then partial match)
         employee = None
@@ -761,13 +761,13 @@ class AIHRAssistant:
                 break
         
         if not employee:
-            return f"❌ Employee '{employee_name}' not found. Available employees: {', '.join([emp.get('name', 'Unknown') for emp in self.employees_data[:5]])}..."
+            return f"  Employee '{employee_name}' not found. Available employees: {', '.join([emp.get('name', 'Unknown') for emp in self.employees_data[:5]])}..."
         
         employee_id = employee.get('id')
         employee_attendance = [att for att in self.attendance_data if att.get('employee_id') == employee_id]
         
         if not employee_attendance:
-            return f"❌ No attendance records found for {employee_name}."
+            return f"  No attendance records found for {employee_name}."
         
         # Analyze employee's attendance
         status_counts = {}
@@ -804,7 +804,7 @@ class AIHRAssistant:
     def _get_employee_details(self, employee_name: str) -> str:
         """Get detailed information about a specific employee"""
         if not self.employees_data:
-            return "❌ No employee data available."
+            return "  No employee data available."
         
         # Find employee by name
         employee = None
@@ -814,7 +814,7 @@ class AIHRAssistant:
                 break
         
         if not employee:
-            return f"❌ Employee '{employee_name}' not found."
+            return f"  Employee '{employee_name}' not found."
         
         # Get organization name
         org_name = "Unknown"
@@ -867,7 +867,7 @@ class AIHRAssistant:
     def _generate_groq_response(self, question: str, context: str) -> str:
         """Generate response using Groq API"""
         if not self.groq_client:
-            return "❌ Groq API not configured. Please set GROQ_API_KEY environment variable."
+            return "  Groq API not configured. Please set GROQ_API_KEY environment variable."
         
         try:
             # Remove hidden reasoning from model outputs
@@ -884,7 +884,7 @@ class AIHRAssistant:
                 lines = [ln for ln in text.splitlines() if not ln.strip().lower().startswith(drop_prefixes)]
                 return "\n".join(lines).strip()
             
-            prompt = f"""You are an AI HR Assistant. Answer the question using only the context provided below. 
+            prompt = f"""You are an  Ask HR. Answer the question using only the context provided below. 
             Be helpful, professional, and provide accurate information based on the HR data.
             
             Context: {context}
@@ -910,15 +910,15 @@ class AIHRAssistant:
             return hide_thinking(answer)
             
         except Exception as e:
-            return f"❌ Error generating response: {str(e)}"
+            return f"  Error generating response: {str(e)}"
     
     def _handle_greeting(self) -> str:
         """Handle greeting messages"""
-        return "👋 Hello! My name is AI HR Assistant. How may I help you today? I can assist you with:\n\n• Employee information and analytics\n• Organization data and insights\n• HR queries and reports\n• General questions about your workforce\n\nWhat would you like to know?"
+        return "👋 Hello! My name is  Ask HR. How may I help you today? I can assist you with:\n\n• Employee information and analytics\n• Organization data and insights\n• HR queries and reports\n• General questions about your workforce\n\nWhat would you like to know?"
     
     def _handle_capabilities_question(self) -> str:
         """Handle questions about capabilities"""
-        return "🤖 **AI HR Assistant Capabilities**:\n\n**📊 Data Analytics:**\n• Organizations ranked by employee count\n• Employee breakdown by organization\n• Role analysis and distribution\n• Largest/smallest organization identification\n\n**🔍 Information Retrieval:**\n• Employee search and details\n• Organization information\n• Contact information lookup\n• Role-based queries\n\n**💬 Conversational:**\n• General HR questions\n• Workforce insights\n• Data analysis and reporting\n\nHow can I assist you today?"
+        return "🤖 ** Ask HR Capabilities**:\n\n**📊 Data Analytics:**\n• Organizations ranked by employee count\n• Employee breakdown by organization\n• Role analysis and distribution\n• Largest/smallest organization identification\n\n**🔍 Information Retrieval:**\n• Employee search and details\n• Organization information\n• Contact information lookup\n• Role-based queries\n\n**💬 Conversational:**\n• General HR questions\n• Workforce insights\n• Data analysis and reporting\n\nHow can I assist you today?"
     
     def _handle_help_question(self) -> str:
         """Handle help requests"""
@@ -954,20 +954,20 @@ class AIHRAssistant:
             return "🤔 I'd be happy to help explain things! However, I'm specifically designed to assist with HR-related questions about your workforce, employees, and organizations. Could you rephrase your question to be more specific about HR data, or ask me something like:\n\n• 'What roles are available in our organization?'\n• 'How many employees do we have?'\n• 'Show me our organizations'"
         
         elif any(phrase in question_lower for phrase in ['who are you', 'what do you do', 'introduce yourself']):
-            return "🤖 I'm your AI HR Assistant! I specialize in helping you with:\n\n• **Employee Management**: Information about your workforce\n• **Organization Analytics**: Insights about your companies\n• **HR Reports**: Data analysis and reporting\n• **Workforce Insights**: Employee statistics and trends\n\nI can analyze your HR data to provide detailed insights, rankings, and reports. What would you like to know about your workforce?"
+            return "🤖 I'm your  Ask HR! I specialize in helping you with:\n\n• **Employee Management**: Information about your workforce\n• **Organization Analytics**: Insights about your companies\n• **HR Reports**: Data analysis and reporting\n• **Workforce Insights**: Employee statistics and trends\n\nI can analyze your HR data to provide detailed insights, rankings, and reports. What would you like to know about your workforce?"
         
         elif any(phrase in question_lower for phrase in ['weather', 'time', 'date', 'news']):
             return "🌤️ I'm an HR Assistant focused on workforce data and analytics. I don't have access to weather, time, or news information. But I can help you with:\n\n• Employee information and analytics\n• Organization data and insights\n• HR queries and workforce reports\n\nIs there anything about your HR data I can help you with?"
         
         else:
-            return "🤖 I'm your AI HR Assistant, specialized in workforce analytics and HR data. I can help you with:\n\n• Employee information and statistics\n• Organization analytics and rankings\n• HR reports and insights\n• Workforce data analysis\n\nCould you ask me something about your employees, organizations, or HR data? For example:\n• 'How many employees do we have?'\n• 'List organizations with most employees'\n• 'What roles are available?'"
+            return "🤖 I'm your  Ask HR, specialized in workforce analytics and HR data. I can help you with:\n\n• Employee information and statistics\n• Organization analytics and rankings\n• HR reports and insights\n• Workforce data analysis\n\nCould you ask me something about your employees, organizations, or HR data? For example:\n• 'How many employees do we have?'\n• 'List organizations with most employees'\n• 'What roles are available?'"
 
 def main():
     """Main Streamlit app"""
-    st.title("🤖 AI HR Assistant")
+    st.title("🤖  Ask HR")
     st.markdown("---")
     
-    # Initialize the AI HR Assistant
+    # Initialize the  Ask HR
     if 'hr_assistant' not in st.session_state:
         st.session_state.hr_assistant = AIHRAssistant()
     
@@ -975,7 +975,7 @@ def main():
     
     # Sidebar
     with st.sidebar:
-        st.header("📊 Data Status")
+        st.header("Data Status")
         st.info(f"Organizations: {len(hr_assistant.organizations_data)}")
         st.info(f"Employees: {len(hr_assistant.employees_data)}")
         st.info(f"Attendance Records: {len(hr_assistant.attendance_data)}")
@@ -992,7 +992,7 @@ def main():
     col_chat, col_faq = st.columns([3, 1])
     
     with col_chat:
-        st.header("💬 Chat with AI HR Assistant")
+        st.header("💬 Chat with  Ask HR")
         
         if "messages" not in st.session_state:
             st.session_state.messages = []
@@ -1031,10 +1031,10 @@ def main():
         st.markdown('</div></div>', unsafe_allow_html=True)
 
     with col_faq:
-        st.markdown("**📌 FAQ**")
+        st.markdown("**FAQ**")
         st.write("How many employees do we have?")
         st.write("List organizations with most employees?")
-        st.markdown("**💡 Suggestions**")
+        st.markdown("**Suggestions**")
         st.write("Check attendance record")
         st.write("View company policies")
         # Quick Actions removed per request
