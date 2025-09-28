@@ -22,8 +22,47 @@ st.set_page_config(
     page_title="AI HR Assistant",
     page_icon="🤖",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        "Get Help": None,
+        "Report a bug": None,
+        "About": None
+    }
 )
+
+# # Chat UI styles
+st.markdown(
+    """
+    <style>
+    
+      .chat-messages { display:flex; flex-direction:column; gap:18px; flex: 1; overflow-y: auto; padding-right: 10px; }
+      .chat-bubble { max-width:62%; padding:12px 16px; border-radius:18px; font-size:16px; line-height:1.45; }
+      .chat-bot { background:#e7ddfb; color:#1c1433; align-self:flex-start; }
+      .chat-user { background:#d5f7f7; color:#103b3b; align-self:flex-end; }
+      .chat-icon-btn { width:40px; height:40px; border:1px solid #e5e7eb; border-radius:10px; background:#ffffff; cursor:pointer; font-size:18px; display:flex; align-items:center; justify-content:center; }
+      .chat-send-btn { width:44px; height:44px; border:1px solid #e5e7eb; border-radius:10px; background:#1e66f5; color:#fff; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      .chat-text { flex:1; border:1px solid #e5e7eb; border-radius:10px; padding:10px 14px; background:#f3f5f9; }
+      /* Force consistent widget heights in input row */
+      div.stTextInput > label { display:none; }
+      div.stTextInput > div { align-items:center; }
+      div.stTextInput > div > div input { height:44px !important; line-height:24px !important; padding-top:8px !important; padding-bottom:8px !important; }
+      div.stButton > button { height:44px !important; width:44px !important; border-radius:10px !important; display:flex; align-items:center; justify-content:center; padding:0 !important; margin-top:0 !important; }
+      /* Fix title clipping with proper spacing */
+
+      h1 { margin-top: 0 !important; padding-top: 0 !important; margin-bottom: 0.5rem !important; }
+      /* Ensure title has enough space */
+      .main .block-container { padding-top: 2rem !important; }
+
+      /* Hide Streamlit default toolbar/menu/deploy */
+      [data-testid="stToolbar"] { display: none !important; }
+      #MainMenu { visibility: hidden; }
+      footer { visibility: hidden; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Voice input removed per user request
 
 class AIHRAssistant:
     def __init__(self):
@@ -48,6 +87,9 @@ class AIHRAssistant:
         self.text_chunks = []
         self.vectorstore = None
         
+        # UI status messages control
+        self.show_status = False
+        
         # Load embedding model
         self._load_embedding_model()
     
@@ -56,7 +98,8 @@ class AIHRAssistant:
         try:
             with st.spinner("Loading AI model..."):
                 self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-            st.success("✅ AI model loaded successfully!")
+            if self.show_status:
+                st.success("✅ AI model loaded successfully!")
             
             # Automatically load data after model loads
             self._auto_load_data()
@@ -80,15 +123,17 @@ class AIHRAssistant:
                 if organizations and employees:
                     # Prepare RAG data
                     self.prepare_rag_data()
-                    st.success("✅ All data loaded successfully!")
+                    if self.show_status:
+                        st.success("✅ All data loaded successfully!")
                 else:
                     st.warning("⚠️ No data found in database")
                 
                 # Debug attendance loading
-                if attendance:
+                if attendance and self.show_status:
                     st.info(f"📊 Loaded {len(attendance)} attendance records")
                 else:
-                    st.warning("⚠️ No attendance records found")
+                    if self.show_status:
+                        st.warning("⚠️ No attendance records found")
         except Exception as e:
             st.error(f"❌ Error loading data: {str(e)}")
     
@@ -198,7 +243,8 @@ class AIHRAssistant:
             with st.spinner("Creating vectorstore..."):
                 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
                 self.vectorstore = FAISS.from_documents(documents, embeddings)
-            st.success(f"✅ Created vectorstore with {len(documents)} documents!")
+            if self.show_status:
+                st.success(f"✅ Created vectorstore with {len(documents)} documents!")
     
     def search_similar_content(self, query: str, top_k: int = 5) -> List[tuple]:
         """Search for similar content using FAISS vectorstore"""
@@ -940,121 +986,58 @@ def main():
         else:
             st.warning("⚠️ No data available")
         
-        # Data display options
-        st.subheader("📋 View Data")
-        if st.button("View Organizations"):
-            if hr_assistant.organizations_data:
-                df_org = pd.DataFrame(hr_assistant.organizations_data)
-                st.dataframe(df_org)
-            else:
-                st.warning("No organizations data loaded")
-        
-        if st.button("View Employees"):
-            if hr_assistant.employees_data:
-                df_emp = pd.DataFrame(hr_assistant.employees_data)
-                st.dataframe(df_emp)
-            else:
-                st.warning("No employees data loaded")
-        
-        if st.button("View Attendance"):
-            if hr_assistant.attendance_data:
-                df_att = pd.DataFrame(hr_assistant.attendance_data)
-                st.dataframe(df_att)
-            else:
-                st.warning("No attendance data loaded")
-        
-        if st.button("View Leaves"):
-            if hr_assistant.leaves_data:
-                df_leaves = pd.DataFrame(hr_assistant.leaves_data)
-                st.dataframe(df_leaves)
-            else:
-                st.warning("No leaves data loaded")
+        # View Data controls removed per request
     
-    # Main content area
-    col1, col2 = st.columns([2, 1])
+    # Main content area: chat (left) + FAQ (right)
+    col_chat, col_faq = st.columns([3, 1])
     
-    with col1:
+    with col_chat:
         st.header("💬 Chat with AI HR Assistant")
         
-        # Chat interface
         if "messages" not in st.session_state:
             st.session_state.messages = []
         
-        # Display chat history
+        # Chat container wrapper
+        st.markdown('<div class="chat-wrapper">', unsafe_allow_html=True)
+        
+        # Messages container
+        st.markdown('<div class="chat-messages">', unsafe_allow_html=True)
         for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+            if message["role"] == "assistant":
+                st.markdown(f'<div class="chat-bubble chat-bot">{message["content"]}</div>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="chat-bubble chat-user">{message["content"]}</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        # Chat input
-        if prompt := st.chat_input("Ask me anything about your HR data..."):
-            # Add user message
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
-            
-            # Generate AI response
-            with st.chat_message("assistant"):
+        # Input container
+        st.markdown('<div class="chat-input-container">', unsafe_allow_html=True)
+        with st.container():
+            # Use balanced column widths for alignment
+            col_mic, col_input, col_send = st.columns([0.06, 0.88, 0.06])
+            with col_mic:
+                st.empty()  # voice input removed
+            with col_input:
+                user_text = st.text_input("", placeholder="Type a message...", key="chat_text")
+            with col_send:
+                send_clicked = st.button("➤", key="chat_send")
+
+            # Voice input removed per user request
+            if send_clicked and user_text:
+                st.session_state.messages.append({"role": "user", "content": user_text})
                 with st.spinner("Thinking..."):
-                    response = hr_assistant.answer_hr_question(prompt)
-                st.markdown(response)
-                st.session_state.messages.append({"role": "assistant", "content": response})
-    
-    with col2:
-        st.header("📈 HR Insights")
-        
-        if hr_assistant.employees_data or hr_assistant.organizations_data:
-            insights = hr_assistant.get_hr_insights()
-            
-            st.metric("Total Employees", insights.get('total_employees', 0))
-            st.metric("Total Organizations", insights.get('total_organizations', 0))
-            st.metric("Organizations with Employees", insights.get('organizations_with_employees', 0))
-            
-            if insights.get('roles'):
-                st.subheader("👔 Roles")
-                for role in insights['roles']:
-                    st.write(f"• {role}")
-            
-            if insights.get('domains'):
-                st.subheader("🌐 Domains")
-                for domain in insights['domains']:
-                    st.write(f"• {domain}")
-        else:
-            st.info("Load data to see insights")
-        
-        # Connection status
-        st.subheader("🔗 Connection Status")
-        try:
-            # Test connection by trying to fetch from organizations table
-            test_response = hr_assistant.supabase.table("organizations").select("*").limit(1).execute()
-            st.success("🟢 Connected to Supabase")
-        except Exception as e:
-            st.error(f"🔴 Connection failed: {str(e)}")
-        
-        # Sample questions
-        st.subheader("💡 Sample Questions")
-        sample_questions = [
-            "How many employees do we have?",
-            "List organizations with most employees",
-            "Show employee breakdown by organization",
-            "What roles are available?",
-            "Show me all organizations",
-            "Which is the largest organization?",
-            "Show leave analytics",
-            "Show attendance analytics",
-            "Show detailed attendance analytics",
-            "List attendance",
-            "Show all attendance records",
-            "Show attendance for John Smith",
-            "Show details for John Smith"
-        ]
-        
-        for question in sample_questions:
-            if st.button(question, key=f"sample_{question}"):
-                st.session_state.messages.append({"role": "user", "content": question})
-                with st.spinner("Thinking..."):
-                    response = hr_assistant.answer_hr_question(question)
+                    response = hr_assistant.answer_hr_question(user_text)
                 st.session_state.messages.append({"role": "assistant", "content": response})
                 st.rerun()
+        st.markdown('</div></div>', unsafe_allow_html=True)
+
+    with col_faq:
+        st.markdown("**📌 FAQ**")
+        st.write("How many employees do we have?")
+        st.write("List organizations with most employees?")
+        st.markdown("**💡 Suggestions**")
+        st.write("Check attendance record")
+        st.write("View company policies")
+        # Quick Actions removed per request
 
 if __name__ == "__main__":
     main()
